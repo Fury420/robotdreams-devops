@@ -2,16 +2,16 @@ name: Docker Build and Test
 
 on:
   push:
-    branches: [main, master]
+    branches: [ main ]
   pull_request:
-    branches: [main, master]
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: python-calculator
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
-    env:
-      IMAGE_NAME: python-calculator
 
     steps:
     - name: Checkout repository
@@ -22,29 +22,64 @@ jobs:
       with:
         python-version: '3.9'
 
-    - name: Install dependencies
-      run: pip install pytest
-
     - name: Run unit tests
       run: |
         echo "🧪 Spouštění unit testů..."
         python -m unittest test_calculator.py -v
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-  
-    - name: Build Docker image
+  deploy-to-ecr:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-central-1
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.5.0
+
+    - name: Terraform Init
+      working-directory: ./terraform
+      run: terraform init
+
+    - name: Terraform Plan
+      working-directory: ./terraform
+      run: terraform plan
+
+    - name: Terraform Apply
+      working-directory: ./terraform
+      run: terraform apply -auto-approve
+
+    - name: Get ECR repository URL
+      id: ecr-url
+      working-directory: ./terraform
       run: |
-        echo "🐳 Buildování Docker image..."
-        docker build -t ${{ env.IMAGE_NAME }}:latest .
-        docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
-  
-    - name: Test Docker container
+        ECR_URL=$(terraform output -raw ecr_repository_url)
+        echo "ecr_url=$ECR_URL" >> $GITHUB_OUTPUT
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push Docker image to ECR
       run: |
-        echo "🚀 Testování Docker kontejneru..."
-        docker run --rm ${{ env.IMAGE_NAME }}:latest
-  
-    - name: List Docker images
-      run: |
-        echo "📋 Seznam vytvořených images:"
-        docker images | grep ${{ env.IMAGE_NAME }}
+        ECR_URL=${{ steps.ecr-url.outputs.ecr_url }}
+        docker build -t $ECR_URL:latest .
+        docker build -t $ECR_URL:${{ github.sha }} .
+        
+        echo "🚀 Pushing images to ECR..."
+        docker push $ECR_URL:latest
+        docker push $ECR_URL:${{ github.sha }}
+        
+        echo "✅ Images pushed successfully!"
+        echo "Repository URL: $ECR_URL"
