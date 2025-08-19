@@ -1,0 +1,56 @@
+name: Deploy Nginx ECS with Docker
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'hw08/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        working-directory: hw08/terraform
+        run: terraform init
+
+      - name: Create ECR Repository with -target
+        working-directory: hw08/terraform
+        run: |
+          terraform apply -target=aws_ecr_repository.mynginx -auto-approve
+          echo "ECR_REPOSITORY=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
+
+      - name: Build and Push Docker Image
+        working-directory: hw08/docker
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $(echo $ECR_REPOSITORY | cut -d'/' -f1)
+          docker build -t $ECR_REPOSITORY:${{ github.sha }} .
+          docker tag $ECR_REPOSITORY:${{ github.sha }} $ECR_REPOSITORY:latest
+          docker push $ECR_REPOSITORY:${{ github.sha }}
+          docker push $ECR_REPOSITORY:latest
+
+      - name: Deploy Remaining Infrastructure
+        working-directory: hw08/terraform
+        run: terraform apply -auto-approve
+
+      - name: Output ALB DNS
+        working-directory: hw08/terraform
+        run: terraform output alb_dns_name

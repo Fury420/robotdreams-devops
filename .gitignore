@@ -1,3 +1,4 @@
 hw07/terraform/.terraform/
 hw07/terraform/terraform.tfstate
 hw07/terraform/terraform.tfstate.backup
+hw08/terraform/.terraform/terraform.tfstate
