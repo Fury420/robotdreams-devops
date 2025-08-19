@@ -1,4 +1,15 @@
 hw07/terraform/.terraform/
 hw07/terraform/terraform.tfstate
 hw07/terraform/terraform.tfstate.backup
-hw08/terraform/.terraform/terraform.tfstate
+hw08/terraform/.terraform/
+hw08/terraform/.terraform.lock.hcl
+hw08/terraform/terraform.tfstate
+hw08/terraform/terraform.tfstate.backup
+
+# Obecná pravidla pro Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+.terragrunt-cache
+*.tfvars
+*.tfplan
