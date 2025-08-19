@@ -8,8 +8,18 @@ hw08/terraform/terraform.tfstate.backup
 
 # Obecná pravidla pro Terraform
 **/.terraform/*
+**/.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 .terragrunt-cache
 *.tfvars
 *.tfplan
+*.tfvars.json
+.terraform.lock.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.DS_Store
